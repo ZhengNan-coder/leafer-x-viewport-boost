@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LeaferX Viewport Boost Demo</title>
+    <script src="https://unpkg.com/leafer@2.1.0/dist/web.min.js"></script>
+    <script src="../dist/viewport-boost.umd.js?v=0.7.0"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #121417;
+        color: #eef2f7;
+        font: 13px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      #stage {
+        position: fixed;
+        left: -640px;
+        top: -640px;
+        width: calc(100vw + 1280px);
+        height: calc(100vh + 1280px);
+        cursor: grab;
+      }
+
+      #stage.is-panning {
+        cursor: grabbing;
+      }
+
+      .panel {
+        position: fixed;
+        left: 16px;
+        top: 16px;
+        z-index: 20;
+        width: min(420px, calc(100vw - 32px));
+        padding: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 8px;
+        background: rgba(18, 20, 23, 0.78);
+        backdrop-filter: blur(10px);
+      }
+
+      .toolbar {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      button {
+        min-height: 32px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 6px;
+        background: #f2f5f8;
+        color: #15181d;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      button[data-active="true"] {
+        background: #3bd17f;
+        color: #07120b;
+        border-color: #3bd17f;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px 12px;
+      }
+
+      .stat {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .stat span:first-child {
+        color: #a9b4c0;
+      }
+
+      .stat strong {
+        overflow: hidden;
+        text-align: right;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="stage"></div>
+    <section class="panel">
+      <div class="toolbar">
+        <button id="toggle" data-active="true">加速开</button>
+        <button id="zoomIn">放大</button>
+        <button id="zoomOut">缩小</button>
+        <button id="reset">重置</button>
+      </div>
+      <div class="stats">
+        <div class="stat"><span>元素</span><strong id="count">0</strong></div>
+        <div class="stat"><span>创建</span><strong id="createMs">...</strong></div>
+        <div class="stat"><span>FPS</span><strong id="fps">...</strong></div>
+        <div class="stat"><span>缩放</span><strong id="scale">1.00</strong></div>
+      </div>
+    </section>
+
+    <script>
+      var LeaferClass = LeaferUI.Leafer
+      var GroupClass = LeaferUI.Group
+      var RectClass = LeaferUI.Rect
+      var ViewportBoostClass = LeaferX.viewportBoost.ViewportBoost
+
+      const stage = document.getElementById('stage')
+      const overscan = 640
+      const leafer = new LeaferClass({
+        view: stage,
+        type: 'custom',
+        wheel: { preventDefault: true },
+        touch: { preventDefault: true },
+        move: { drag: false },
+        zoom: { min: 0.02, max: 16 }
+      })
+
+      const boost = new ViewportBoostClass(leafer, {
+        minChildren: 20000,
+        idleDelay: 1600,
+        maxPixelRatio: 1
+      })
+
+      const countEl = document.getElementById('count')
+      const createEl = document.getElementById('createMs')
+      const fpsEl = document.getElementById('fps')
+      const scaleEl = document.getElementById('scale')
+      const toggle = document.getElementById('toggle')
+
+      function viewportLayer() {
+        return leafer.zoomLayer || leafer
+      }
+
+      function viewportScale() {
+        if (boost) return boost.getScale()
+        const layer = viewportLayer()
+        if (typeof layer.scaleX === 'number') return layer.scaleX
+        if (typeof layer.scale === 'number') return layer.scale
+        return (layer.scale && layer.scale.x) || 1
+      }
+
+      function createMillion(view) {
+        const start = performance.now()
+        const groupSize = 10 * 100 * 1.5
+        const column = 10
+        let total = 0
+
+        for (let i = 0; i < 100; i++) {
+          const group = new GroupClass()
+          group.x = groupSize * (i % column)
+          group.y = groupSize * Math.floor(i / column)
+          view.add(group)
+          total += create10000(group, 0, 0, `hsl(${i * 3}, 58%, 54%)`)
+        }
+
+        countEl.textContent = total.toLocaleString()
+        createEl.textContent = Math.round(performance.now() - start) + 'ms'
+      }
+
+      function create10000(group, startX, startY, color) {
+        let total = 0
+        for (let i = 0; i < 100; i++) {
+          if (i % 10 === 0) startX += 10
+          let y = startY
+          for (let j = 0; j < 100; j++) {
+            if (j % 10 === 0) y += 10
+            group.add(
+              new RectClass({
+                x: startX,
+                y,
+                width: 10,
+                height: 10,
+                fill: color,
+                draggable: true
+              })
+            )
+            y += 12
+            total++
+          }
+          startX += 12
+        }
+        return total
+      }
+
+      function zoomBy(scale) {
+        const center = { x: innerWidth / 2, y: innerHeight / 2 }
+        zoomAt(center, scale)
+      }
+
+      function zoomAt(center, scale) {
+        boost.zoomAt(center, scale)
+        scaleEl.textContent = viewportScale().toFixed(2)
+      }
+
+      toggle.addEventListener('click', () => {
+        const enabled = toggle.dataset.active !== 'true'
+        boost.setEnabled(enabled)
+        toggle.dataset.active = String(enabled)
+        toggle.textContent = enabled ? '加速开' : '加速关'
+      })
+      document.getElementById('zoomIn').addEventListener('click', () => zoomBy(1.2))
+      document.getElementById('zoomOut').addEventListener('click', () => zoomBy(0.82))
+      document.getElementById('reset').addEventListener('click', () => {
+        const layer = viewportLayer()
+        layer.x = overscan
+        layer.y = overscan
+        layer.scaleX = 1
+        layer.scaleY = 1
+        layer.scale = 1
+        scaleEl.textContent = '1.00'
+      })
+
+      let dragging = false
+      let lastX = 0
+      let lastY = 0
+
+      stage.addEventListener(
+        'pointerdown',
+        (event) => {
+          if (event.button !== 0 || event.target.closest('.panel')) return
+          dragging = true
+          lastX = event.clientX
+          lastY = event.clientY
+          stage.classList.add('is-panning')
+          stage.setPointerCapture(event.pointerId)
+          boost.begin()
+          event.stopImmediatePropagation()
+          event.preventDefault()
+        },
+        { capture: true }
+      )
+
+      stage.addEventListener(
+        'pointermove',
+        (event) => {
+          if (!dragging) return
+          boost.panBy(event.clientX - lastX, event.clientY - lastY)
+          lastX = event.clientX
+          lastY = event.clientY
+          event.stopImmediatePropagation()
+          event.preventDefault()
+        },
+        { capture: true }
+      )
+
+      function endPan(event) {
+        if (!dragging) return
+        dragging = false
+        stage.classList.remove('is-panning')
+        if (event.pointerId !== undefined && stage.hasPointerCapture(event.pointerId)) stage.releasePointerCapture(event.pointerId)
+        boost.begin()
+        event.stopImmediatePropagation()
+      }
+
+      stage.addEventListener('pointerup', endPan, { capture: true })
+      stage.addEventListener('pointercancel', endPan, { capture: true })
+
+      stage.addEventListener(
+        'wheel',
+        (event) => {
+          if (event.target.closest('.panel')) return
+          event.stopImmediatePropagation()
+          event.preventDefault()
+
+          if (event.ctrlKey || event.metaKey) {
+            const scale = Math.pow(0.999, event.deltaY)
+            zoomAt({ x: event.clientX, y: event.clientY }, scale)
+            return
+          }
+
+          const moveX = event.shiftKey ? -event.deltaY : -event.deltaX
+          const moveY = event.shiftKey ? 0 : -event.deltaY
+          boost.panBy(moveX, moveY)
+        },
+        { passive: false, capture: true }
+      )
+
+      let frames = 0
+      let last = performance.now()
+      function tick(now) {
+        frames++
+        if (now - last > 500) {
+          fpsEl.textContent = Math.round((frames * 1000) / (now - last))
+          frames = 0
+          last = now
+          scaleEl.textContent = viewportScale().toFixed(2)
+        }
+        requestAnimationFrame(tick)
+      }
+
+      createMillion(leafer)
+      viewportLayer().x = overscan
+      viewportLayer().y = overscan
+      requestAnimationFrame(tick)
+      window.__leaferBoostDemo = { leafer, boost }
+    </script>
+  </body>
+</html>

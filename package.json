@@ -1,0 +1,43 @@
+{
+  "name": "leafer-x-viewport-boost",
+  "version": "0.7.0",
+  "description": "A LeaferX viewport acceleration plugin for very large scenes.",
+  "type": "module",
+  "main": "dist/viewport-boost.cjs",
+  "module": "dist/viewport-boost.esm.js",
+  "types": "types/index.d.ts",
+  "unpkg": "dist/viewport-boost.umd.js",
+  "files": [
+    "dist",
+    "src",
+    "types",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "vite --host 127.0.0.1",
+    "build": "rollup -c",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "leafer",
+    "leaferx",
+    "canvas",
+    "viewport",
+    "performance"
+  ],
+  "peerDependencies": {
+    "@leafer-ui/core": "^2.1.0",
+    "@leafer-ui/interface": "^2.1.0"
+  },
+  "devDependencies": {
+    "@leafer-ui/core": "^2.1.0",
+    "@leafer-ui/interface": "^2.1.0",
+    "@leafer-in/viewport": "^2.1.0",
+    "leafer-ui": "^2.1.0",
+    "@rollup/plugin-typescript": "^11.0.0",
+    "rollup": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}
