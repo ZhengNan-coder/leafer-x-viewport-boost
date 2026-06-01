@@ -1,6 +1,7 @@
 export interface ViewportBoostOptions {
   enabled?: boolean
   idleDelay?: number
+  zoomOutIdleDelay?: number
   minChildren?: number
   minScale?: number
   maxPixelRatio?: number
@@ -22,6 +23,7 @@ export class ViewportBoost {
   panBy(x: number, y: number): void
   zoomAt(center: { x: number; y: number }, scale: number): void
   getScale(): number
+  getViewport(): { x: number; y: number; scaleX: number; scaleY: number }
   end(force?: boolean): void
   setEnabled(enabled: boolean): void
 }

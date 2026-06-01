@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LeaferX Viewport Boost Demo</title>
     <script src="https://unpkg.com/leafer@2.1.0/dist/web.min.js"></script>
-    <script src="../dist/viewport-boost.umd.js?v=0.7.0"></script>
+    <script src="../dist/viewport-boost.umd.js?v=0.8.1"></script>
     <style>
       * {
         box-sizing: border-box;
@@ -28,7 +28,7 @@
         top: -640px;
         width: calc(100vw + 1280px);
         height: calc(100vh + 1280px);
-        cursor: grab;
+        cursor: default;
       }
 
       #stage.is-panning {
@@ -50,7 +50,7 @@
 
       .toolbar {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(5, minmax(0, 1fr));
         gap: 8px;
         margin-bottom: 10px;
       }
@@ -104,6 +104,7 @@
         <button id="zoomIn">放大</button>
         <button id="zoomOut">缩小</button>
         <button id="reset">重置</button>
+        <button id="spacePan">Space</button>
       </div>
       <div class="stats">
         <div class="stat"><span>元素</span><strong id="count">0</strong></div>
@@ -133,6 +134,7 @@
       const boost = new ViewportBoostClass(leafer, {
         minChildren: 20000,
         idleDelay: 1600,
+        zoomOutIdleDelay: 320,
         maxPixelRatio: 1
       })
 
@@ -141,6 +143,9 @@
       const fpsEl = document.getElementById('fps')
       const scaleEl = document.getElementById('scale')
       const toggle = document.getElementById('toggle')
+      const spacePan = document.getElementById('spacePan')
+      let selection
+      let spaceDown = false
 
       function viewportLayer() {
         return leafer.zoomLayer || leafer
@@ -152,6 +157,17 @@
         if (typeof layer.scaleX === 'number') return layer.scaleX
         if (typeof layer.scale === 'number') return layer.scale
         return (layer.scale && layer.scale.x) || 1
+      }
+
+      function viewportState() {
+        if (boost) return boost.getViewport()
+        const layer = viewportLayer()
+        return {
+          x: Number(layer.x || 0),
+          y: Number(layer.y || 0),
+          scaleX: viewportScale(),
+          scaleY: viewportScale()
+        }
       }
 
       function createMillion(view) {
@@ -214,7 +230,7 @@
         toggle.textContent = enabled ? '加速开' : '加速关'
       })
       document.getElementById('zoomIn').addEventListener('click', () => zoomBy(1.2))
-      document.getElementById('zoomOut').addEventListener('click', () => zoomBy(0.82))
+      document.getElementById('zoomOut').addEventListener('click', () => zoomBy(0.72))
       document.getElementById('reset').addEventListener('click', () => {
         const layer = viewportLayer()
         layer.x = overscan
@@ -226,14 +242,67 @@
       })
 
       let dragging = false
+      let pointerMoved = false
       let lastX = 0
       let lastY = 0
+
+      function shouldPan(event) {
+        return event.button === 1 || event.button === 2 || spaceDown
+      }
+
+      function updatePanButton() {
+        spacePan.dataset.active = String(spaceDown)
+      }
+
+      window.addEventListener('keydown', (event) => {
+        if (event.code !== 'Space' || event.target.closest?.('button')) return
+        spaceDown = true
+        updatePanButton()
+        event.preventDefault()
+      })
+
+      window.addEventListener('keyup', (event) => {
+        if (event.code !== 'Space') return
+        spaceDown = false
+        updatePanButton()
+      })
+
+      stage.addEventListener('contextmenu', (event) => event.preventDefault())
+
+      function selectAt(clientX, clientY) {
+        const rect = stage.getBoundingClientRect()
+        const viewport = viewportState()
+        const worldX = (clientX - rect.left - viewport.x) / viewport.scaleX
+        const worldY = (clientY - rect.top - viewport.y) / viewport.scaleY
+        const gridX = Math.floor(worldX / 12) * 12
+        const gridY = Math.floor(worldY / 12) * 12
+        if (!selection) {
+          selection = new RectClass({
+            width: 12,
+            height: 12,
+            fill: 'rgba(0,0,0,0)',
+            stroke: '#38bdf8',
+            strokeWidth: 2,
+            hittable: false
+          })
+          leafer.add(selection)
+        }
+        selection.x = gridX
+        selection.y = gridY
+      }
 
       stage.addEventListener(
         'pointerdown',
         (event) => {
-          if (event.button !== 0 || event.target.closest('.panel')) return
+          if (event.target.closest('.panel')) return
+          if (!shouldPan(event)) {
+            pointerMoved = false
+            lastX = event.clientX
+            lastY = event.clientY
+            return
+          }
           dragging = true
+          pointerMoved = false
           lastX = event.clientX
           lastY = event.clientY
           stage.classList.add('is-panning')
@@ -249,6 +318,7 @@
         'pointermove',
         (event) => {
           if (!dragging) return
+          pointerMoved = true
           boost.panBy(event.clientX - lastX, event.clientY - lastY)
           lastX = event.clientX
           lastY = event.clientY
@@ -259,7 +329,10 @@
       )
 
       function endPan(event) {
-        if (!dragging) return
+        if (!dragging) {
+          if (!pointerMoved && event.button === 0 && !event.target.closest('.panel')) selectAt(event.clientX, event.clientY)
+          return
+        }
         dragging = false
         stage.classList.remove('is-panning')
         if (event.pointerId !== undefined && stage.hasPointerCapture(event.pointerId)) stage.releasePointerCapture(event.pointerId)
@@ -278,7 +351,7 @@
           event.preventDefault()
 
           if (event.ctrlKey || event.metaKey) {
-            const scale = Math.pow(0.999, event.deltaY)
+            const scale = Math.exp(-event.deltaY * 0.0032)
             zoomAt({ x: event.clientX, y: event.clientY }, scale)
             return
           }

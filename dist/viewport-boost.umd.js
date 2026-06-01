@@ -3,6 +3,7 @@
   var defaults = {
     enabled: true,
     idleDelay: 1600,
+    zoomOutIdleDelay: 320,
     minChildren: 20000,
     minScale: 0,
     maxPixelRatio: 1.5,
@@ -24,6 +25,7 @@
     this.idleTimer = 0
     this.restoreTimer = 0
     this.raf = 0
+    this.lastAction = 'pan'
     this.installed = false
     this.heavyScene = undefined
 
@@ -76,6 +78,7 @@
     if (!snapshot) return
     snapshot.currentX += x
     snapshot.currentY += y
+    this.lastAction = 'pan'
     this.updateSnapshotTransform()
     this.scheduleEnd()
   }
@@ -93,12 +96,23 @@
     snapshot.currentY = localY - (localY - snapshot.currentY) * ratioY
     snapshot.currentScaleX = nextScaleX
     snapshot.currentScaleY = nextScaleY
+    this.lastAction = scale < 1 ? 'zoom-out' : 'zoom-in'
     this.updateSnapshotTransform()
     this.scheduleEnd()
   }
 
   ViewportBoost.prototype.getScale = function () {
     return (this.snapshot && this.snapshot.currentScaleX) || this.getScaleX(this.getViewportLayer())
+  }
+
+  ViewportBoost.prototype.getViewport = function () {
+    var layer = this.getViewportLayer()
+    return {
+      x: (this.snapshot && this.snapshot.currentX) != null ? this.snapshot.currentX : Number(layer.x || 0),
+      y: (this.snapshot && this.snapshot.currentY) != null ? this.snapshot.currentY : Number(layer.y || 0),
+      scaleX: (this.snapshot && this.snapshot.currentScaleX) != null ? this.snapshot.currentScaleX : this.getScaleX(layer),
+      scaleY: (this.snapshot && this.snapshot.currentScaleY) != null ? this.snapshot.currentScaleY : this.getScaleY(layer)
+    }
   }
 
   ViewportBoost.prototype.end = function (force) {
@@ -254,13 +268,18 @@
 
   ViewportBoost.prototype.scheduleEnd = function () {
     var self = this
+    var delay = this.lastAction === 'zoom-out' ? this.options.zoomOutIdleDelay : this.options.idleDelay
     clearTimeout(this.idleTimer)
     this.idleTimer = setTimeout(function () {
       if (!self.options.commitOnIdle) return
+      if (self.lastAction === 'zoom-out') {
+        self.end()
+        return
+      }
       self.runWhenIdle(function () {
         self.end()
       })
-    }, this.options.idleDelay)
+    }, delay)
   }
 
   ViewportBoost.prototype.runWhenIdle = function (callback) {

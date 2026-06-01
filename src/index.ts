@@ -1,6 +1,7 @@
 export interface ViewportBoostOptions {
   enabled?: boolean
   idleDelay?: number
+  zoomOutIdleDelay?: number
   minChildren?: number
   minScale?: number
   maxPixelRatio?: number
@@ -60,6 +61,7 @@ interface SnapshotState {
 const defaultOptions: Required<ViewportBoostOptions> = {
   enabled: true,
   idleDelay: 1600,
+  zoomOutIdleDelay: 320,
   minChildren: 20000,
   minScale: 0,
   maxPixelRatio: 1.5,
@@ -82,6 +84,7 @@ export class ViewportBoost {
   private idleTimer = 0
   private restoreTimer = 0
   private raf = 0
+  private lastAction: 'pan' | 'zoom-in' | 'zoom-out' = 'pan'
   private installed = false
   private moveHandler = () => this.begin()
   private zoomHandler = () => this.begin()
@@ -133,6 +136,7 @@ export class ViewportBoost {
 
     snapshot.currentX += x
     snapshot.currentY += y
+    this.lastAction = 'pan'
     this.updateSnapshotTransform()
     this.scheduleEnd()
   }
@@ -152,6 +156,7 @@ export class ViewportBoost {
     snapshot.currentY = localY - (localY - snapshot.currentY) * ratioY
     snapshot.currentScaleX = nextScaleX
     snapshot.currentScaleY = nextScaleY
+    this.lastAction = scale < 1 ? 'zoom-out' : 'zoom-in'
 
     this.updateSnapshotTransform()
     this.scheduleEnd()
@@ -159,6 +164,16 @@ export class ViewportBoost {
 
   getScale(): number {
     return this.snapshot?.currentScaleX || this.getScaleX(this.getViewportLayer())
+  }
+
+  getViewport(): { x: number; y: number; scaleX: number; scaleY: number } {
+    const layer = this.getViewportLayer()
+    return {
+      x: this.snapshot?.currentX ?? Number(layer.x || 0),
+      y: this.snapshot?.currentY ?? Number(layer.y || 0),
+      scaleX: this.snapshot?.currentScaleX ?? this.getScaleX(layer),
+      scaleY: this.snapshot?.currentScaleY ?? this.getScaleY(layer)
+    }
   }
 
   end(force = false): void {
@@ -316,10 +331,15 @@ export class ViewportBoost {
 
   private scheduleEnd(): void {
     window.clearTimeout(this.idleTimer)
+    const delay = this.lastAction === 'zoom-out' ? this.options.zoomOutIdleDelay : this.options.idleDelay
     this.idleTimer = window.setTimeout(() => {
       if (!this.options.commitOnIdle) return
+      if (this.lastAction === 'zoom-out') {
+        this.end()
+        return
+      }
       this.runWhenIdle(() => this.end())
-    }, this.options.idleDelay)
+    }, delay)
   }
 
   private runWhenIdle(callback: () => void): void {
