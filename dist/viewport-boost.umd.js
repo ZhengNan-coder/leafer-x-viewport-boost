@@ -2,6 +2,7 @@
   var LeaferX = (global.LeaferX = global.LeaferX || {})
   var defaults = {
     enabled: true,
+    mode: 'native',
     idleDelay: 1600,
     zoomOutIdleDelay: 320,
     minChildren: 20000,
@@ -39,6 +40,12 @@
     this.endHandler = function () {
       self.scheduleEnd()
     }
+    this.nativeHandler = function () {
+      self.nativeBegin()
+    }
+    this.nativeEndHandler = function () {
+      self.nativeEnd()
+    }
 
     if (this.options.enabled) this.install()
   }
@@ -46,12 +53,21 @@
   ViewportBoost.prototype.install = function () {
     if (this.installed) return
     this.installed = true
-    this.on('move.start', this.moveHandler)
-    this.on('move', this.moveHandler)
-    this.on('zoom.start', this.zoomHandler)
-    this.on('zoom', this.zoomHandler)
-    this.on('move.end', this.endHandler)
-    this.on('zoom.end', this.endHandler)
+    if (this.options.mode === 'manual') {
+      this.on('move.start', this.moveHandler)
+      this.on('move', this.moveHandler)
+      this.on('zoom.start', this.zoomHandler)
+      this.on('zoom', this.zoomHandler)
+      this.on('move.end', this.endHandler)
+      this.on('zoom.end', this.endHandler)
+      return
+    }
+    this.on('move.start', this.nativeHandler)
+    this.on('move', this.nativeHandler)
+    this.on('zoom.start', this.nativeHandler)
+    this.on('zoom', this.nativeHandler)
+    this.on('move.end', this.nativeEndHandler)
+    this.on('zoom.end', this.nativeEndHandler)
   }
 
   ViewportBoost.prototype.uninstall = function () {
@@ -63,7 +79,31 @@
     this.off('zoom', this.zoomHandler)
     this.off('move.end', this.endHandler)
     this.off('zoom.end', this.endHandler)
+    this.off('move.start', this.nativeHandler)
+    this.off('move', this.nativeHandler)
+    this.off('zoom.start', this.nativeHandler)
+    this.off('zoom', this.nativeHandler)
+    this.off('move.end', this.nativeEndHandler)
+    this.off('zoom.end', this.nativeEndHandler)
     this.end(true)
+  }
+
+  ViewportBoost.prototype.nativeBegin = function () {
+    if (!this.options.enabled || !this.shouldBoost()) return
+    var canvas = this.getCanvas()
+    if (!canvas) return
+    canvas.style.willChange = 'transform'
+    clearTimeout(this.idleTimer)
+  }
+
+  ViewportBoost.prototype.nativeEnd = function () {
+    var canvas = this.getCanvas()
+    if (!canvas) return
+    clearTimeout(this.idleTimer)
+    var self = this
+    this.idleTimer = setTimeout(function () {
+      canvas.style.willChange = ''
+    }, this.options.zoomOutIdleDelay)
   }
 
   ViewportBoost.prototype.begin = function () {
@@ -74,6 +114,7 @@
   }
 
   ViewportBoost.prototype.panBy = function (x, y) {
+    this.options.mode = 'manual'
     var snapshot = this.ensureVirtualSnapshot()
     if (!snapshot) return
     snapshot.currentX += x
@@ -84,6 +125,7 @@
   }
 
   ViewportBoost.prototype.zoomAt = function (center, scale) {
+    this.options.mode = 'manual'
     var snapshot = this.ensureVirtualSnapshot()
     if (!snapshot) return
     var nextScaleX = this.clampZoom(snapshot.currentScaleX * scale)

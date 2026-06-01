@@ -1,6 +1,6 @@
 {
   "name": "leafer-x-viewport-boost",
-  "version": "0.8.1",
+  "version": "0.9.1",
   "description": "A LeaferX viewport acceleration plugin for very large scenes.",
   "type": "module",
   "main": "dist/viewport-boost.cjs",

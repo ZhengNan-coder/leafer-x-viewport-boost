@@ -22,7 +22,7 @@ import { ViewportBoost } from 'leafer-x-viewport-boost'
 
 const leafer = new Leafer({
   view: window,
-  type: 'custom'
+  type: 'viewport'
 })
 
 const boost = new ViewportBoost(leafer, {
@@ -50,6 +50,7 @@ HTML 直连：
 | 选项 | 默认值 | 说明 |
 | --- | --- | --- |
 | `enabled` | `true` | 是否启用插件 |
+| `mode` | `native` | 默认兼容 Leafer 官方 viewport/editor，不接管鼠标；`manual` 用于自定义 panBy/zoomAt |
 | `idleDelay` | `1600` | 交互停止多少毫秒后提交真实视口，连续移动/缩放建议 1200-2200 |
 | `zoomOutIdleDelay` | `320` | 缩小时更快提交真实视口，并跳过 idle 等待，让新露出的元素更快渲染 |
 | `minChildren` | `20000` | 低于该元素量不启用加速模式 |
@@ -71,7 +72,9 @@ HTML 直连：
 
 ## 虚拟视口 API
 
-为了让 10 万到 100 万元素场景的缩放更丝滑，建议在自定义滚轮/拖拽交互里直接调用插件的虚拟视口 API：
+默认 `native` 模式会直接兼容 Leafer 官方 `type: 'viewport'` 和 `App({ editor: {} })`，不会拦截鼠标、滚轮、选择、框选等编辑器能力。
+
+如果你要做完全自定义交互，可以切到 `manual` 模式，并调用虚拟视口 API：
 
 ```ts
 boost.panBy(deltaX, deltaY)
@@ -81,9 +84,7 @@ boost.getViewport()
 
 这两个方法在交互期间不会频繁写入 Leafer 的真实 `x/y/scale`，只变换真实 canvas 的 CSS 合成层；空闲后才一次性提交最终视口。插件不再复制快照覆盖层，所以不会出现两层画面叠加造成的重影。
 
-建议配合 Leafer 官方的 `custom` 视口类型使用，避免官方 `viewport` 默认滚轮/拖拽处理和插件的虚拟视口同时改动 `zoomLayer`。
-
-编辑器类交互建议把左键留给选中/编辑，把平移绑定到中键、右键或 Space + 左键；demo 也是这样组织的。
+编辑器类应用建议优先使用默认 `native` 模式，保留 Leafer 官方编辑器的点击选中、框选、滚轮缩放和平移能力。
 
 如果希望大幅拖拽时边缘也不露出空白，需要像 demo 一样给 Leafer view 留出 overscan 缓冲区：让实际 view 比可见视口大一圈，并把 `zoomLayer.x/y` 初始化到缓冲偏移量。
 

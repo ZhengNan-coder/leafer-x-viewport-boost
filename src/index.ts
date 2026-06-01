@@ -1,5 +1,6 @@
 export interface ViewportBoostOptions {
   enabled?: boolean
+  mode?: 'native' | 'manual'
   idleDelay?: number
   zoomOutIdleDelay?: number
   minChildren?: number
@@ -60,6 +61,7 @@ interface SnapshotState {
 
 const defaultOptions: Required<ViewportBoostOptions> = {
   enabled: true,
+  mode: 'native',
   idleDelay: 1600,
   zoomOutIdleDelay: 320,
   minChildren: 20000,
@@ -89,6 +91,8 @@ export class ViewportBoost {
   private moveHandler = () => this.begin()
   private zoomHandler = () => this.begin()
   private endHandler = () => this.scheduleEnd()
+  private nativeHandler = () => this.nativeBegin()
+  private nativeEndHandler = () => this.nativeEnd()
   private heavyScene?: boolean
 
   constructor(app: AnyApp, options: ViewportBoostOptions = {}) {
@@ -102,12 +106,22 @@ export class ViewportBoost {
     if (this.installed) return
     this.installed = true
 
-    this.on('move.start', this.moveHandler)
-    this.on('move', this.moveHandler)
-    this.on('zoom.start', this.zoomHandler)
-    this.on('zoom', this.zoomHandler)
-    this.on('move.end', this.endHandler)
-    this.on('zoom.end', this.endHandler)
+    if (this.options.mode === 'manual') {
+      this.on('move.start', this.moveHandler)
+      this.on('move', this.moveHandler)
+      this.on('zoom.start', this.zoomHandler)
+      this.on('zoom', this.zoomHandler)
+      this.on('move.end', this.endHandler)
+      this.on('zoom.end', this.endHandler)
+      return
+    }
+
+    this.on('move.start', this.nativeHandler)
+    this.on('move', this.nativeHandler)
+    this.on('zoom.start', this.nativeHandler)
+    this.on('zoom', this.nativeHandler)
+    this.on('move.end', this.nativeEndHandler)
+    this.on('zoom.end', this.nativeEndHandler)
   }
 
   uninstall(): void {
@@ -120,7 +134,30 @@ export class ViewportBoost {
     this.off('zoom', this.zoomHandler)
     this.off('move.end', this.endHandler)
     this.off('zoom.end', this.endHandler)
+    this.off('move.start', this.nativeHandler)
+    this.off('move', this.nativeHandler)
+    this.off('zoom.start', this.nativeHandler)
+    this.off('zoom', this.nativeHandler)
+    this.off('move.end', this.nativeEndHandler)
+    this.off('zoom.end', this.nativeEndHandler)
     this.end(true)
+  }
+
+  private nativeBegin(): void {
+    if (!this.options.enabled || !this.shouldBoost()) return
+    const canvas = this.getCanvas()
+    if (!canvas) return
+    canvas.style.willChange = 'transform'
+    window.clearTimeout(this.idleTimer)
+  }
+
+  private nativeEnd(): void {
+    const canvas = this.getCanvas()
+    if (!canvas) return
+    window.clearTimeout(this.idleTimer)
+    this.idleTimer = window.setTimeout(() => {
+      canvas.style.willChange = ''
+    }, this.options.zoomOutIdleDelay)
   }
 
   begin(): void {
@@ -131,6 +168,7 @@ export class ViewportBoost {
   }
 
   panBy(x: number, y: number): void {
+    this.options.mode = 'manual'
     const snapshot = this.ensureVirtualSnapshot()
     if (!snapshot) return
 
@@ -142,6 +180,7 @@ export class ViewportBoost {
   }
 
   zoomAt(center: { x: number; y: number }, scale: number): void {
+    this.options.mode = 'manual'
     const snapshot = this.ensureVirtualSnapshot()
     if (!snapshot) return
 

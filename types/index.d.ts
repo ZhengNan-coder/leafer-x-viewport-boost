@@ -1,5 +1,6 @@
 export interface ViewportBoostOptions {
   enabled?: boolean
+  mode?: 'native' | 'manual'
   idleDelay?: number
   zoomOutIdleDelay?: number
   minChildren?: number
