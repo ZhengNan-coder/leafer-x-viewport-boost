@@ -72,7 +72,7 @@ HTML 直连：
 
 ## 虚拟视口 API
 
-默认 `native` 模式会直接兼容 Leafer 官方 `type: 'viewport'` 和 `App({ editor: {} })`，不会拦截鼠标、滚轮、选择、框选等编辑器能力。
+默认 `native` 模式会直接兼容 Leafer 官方 `type: 'viewport'` 和 `App({ editor: {} })`，不会拦截鼠标、滚轮、选择、框选等编辑器能力。插件会在官方 move/zoom 期间暂停真实重绘，并用 canvas CSS transform 跟随官方 `zoomLayer`，结束后再恢复真实渲染。
 
 如果你要做完全自定义交互，可以切到 `manual` 模式，并调用虚拟视口 API：
 

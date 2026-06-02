@@ -90,20 +90,13 @@
 
   ViewportBoost.prototype.nativeBegin = function () {
     if (!this.options.enabled || !this.shouldBoost()) return
-    var canvas = this.getCanvas()
-    if (!canvas) return
-    canvas.style.willChange = 'transform'
-    clearTimeout(this.idleTimer)
+    if (!this.snapshot) this.createSnapshot(false)
+    this.updateSnapshotTransform()
+    this.scheduleEnd()
   }
 
   ViewportBoost.prototype.nativeEnd = function () {
-    var canvas = this.getCanvas()
-    if (!canvas) return
-    clearTimeout(this.idleTimer)
-    var self = this
-    this.idleTimer = setTimeout(function () {
-      canvas.style.willChange = ''
-    }, this.options.zoomOutIdleDelay)
+    this.scheduleEnd()
   }
 
   ViewportBoost.prototype.begin = function () {
@@ -180,7 +173,7 @@
     snapshot.source.style.transformOrigin = snapshot.sourceTransformOrigin
     snapshot.source.style.willChange = snapshot.sourceWillChange
 
-    if (this.options.disableHitTest) {
+    if (this.options.disableHitTest && snapshot.virtual) {
       this.leafer.hitChildren = snapshot.hitChildren
       this.leafer.hittable = snapshot.hittable
     }
@@ -257,7 +250,7 @@
 
     source.style.transformOrigin = '0 0'
     source.style.willChange = 'transform'
-    if (this.options.disableHitTest) {
+    if (this.options.disableHitTest && virtual) {
       this.leafer.hitChildren = false
       this.leafer.hittable = false
     }
